@@ -1,0 +1,20 @@
+{
+	"compilerOptions": {
+		"moduleResolution": "node",
+		"target": "esnext",
+		"strict": true,
+		"module": "esnext",
+		"outDir": "dist",
+		"importHelpers": true,
+		"experimentalDecorators": true,
+		"emitDecoratorMetadata": true,
+		"plugins": [
+			{
+				"transform": "typescript-rtti/dist/transformer"
+			}
+		]
+	},
+	"exclude": [
+		"node_modules"
+	]
+}
