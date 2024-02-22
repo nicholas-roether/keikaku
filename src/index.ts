@@ -3,10 +3,9 @@ const enum TypeId {
 	NUMBER,
 	BOOLEAN,
 	BIGINT,
-	NULL,
-	UNDEFINED,
 	UNKNOWN,
 	OBJECT,
+	EXACT_VALUE,
 }
 
 const enum TypeOperation {
@@ -18,9 +17,8 @@ const SYM_TYPE_ID = Symbol("type_id");
 const SYM_KEY_SCHEMA = Symbol("key_schema");
 const SYM_VALUE_SCHEMA = Symbol("value_schema");
 const SYM_TYPE_OP = Symbol("typeop");
-const SYM_OPTIONAL = Symbol("optional");
-const SYM_NULLABLE = Symbol("nullable");
 const SYM_ARRAY = Symbol("array");
+const SYM_EXACT_VALUE = Symbol("exact_value");
 
 declare const SYM_VIRTUAL_TYPE_MARKER: unique symbol;
 
@@ -30,8 +28,7 @@ type SchemaType<S extends Schema<unknown>> = S[typeof SYM_VIRTUAL_TYPE_MARKER];
 
 type ScalarSchemaContent = {
 	[SYM_TYPE_ID]: TypeId;
-	[SYM_OPTIONAL]?: boolean;
-	[SYM_NULLABLE]?: boolean;
+	[SYM_EXACT_VALUE]: unknown;
 	[SYM_ARRAY]?: boolean;
 	[SYM_KEY_SCHEMA]?: Schema<string | number>;
 	[SYM_VALUE_SCHEMA]?: Schema<unknown>;
@@ -44,14 +41,34 @@ type OperationSchemaContent = Schema<unknown>[] & {
 
 type SchemaContent = ScalarSchemaContent | OperationSchemaContent;
 
+type UnionFromArraySchema<A extends Schema<unknown>[]> = A extends [
+	infer H extends Schema<unknown>,
+	...infer T extends Schema<unknown>[],
+]
+	? SchemaType<H> | UnionFromArraySchema<T>
+	: never;
+
+type IntersectionFromArraySchema<A extends Schema<unknown>[]> = A extends [
+	infer H extends Schema<unknown>,
+	...infer T extends Schema<unknown>[],
+]
+	? SchemaType<H> & UnionFromArraySchema<T>
+	: unknown;
+
 const t = {
 	string: { [SYM_TYPE_ID]: TypeId.STRING } as Schema<string>,
 	number: { [SYM_TYPE_ID]: TypeId.NUMBER } as Schema<number>,
 	boolean: { [SYM_TYPE_ID]: TypeId.BOOLEAN } as Schema<boolean>,
 	bigint: { [SYM_TYPE_ID]: TypeId.BIGINT } as Schema<bigint>,
-	null: { [SYM_TYPE_ID]: TypeId.NULL } as Schema<null>,
-	undefined: { [SYM_TYPE_ID]: TypeId.UNDEFINED } as Schema<undefined>,
 	unknown: { [SYM_TYPE_ID]: TypeId.UNKNOWN } as Schema<unknown>,
+
+	get undefined() {
+		return t.exact(undefined);
+	},
+
+	get null() {
+		return t.exact(null);
+	},
 
 	object<R extends Record<string | number, Schema<unknown>>>(
 		properties: R,
@@ -73,12 +90,19 @@ const t = {
 		} as unknown as Schema<Record<K, V>>;
 	},
 
+	exact<T>(value: T): Schema<T> {
+		return {
+			[SYM_TYPE_ID]: TypeId.EXACT_VALUE,
+			[SYM_EXACT_VALUE]: value,
+		} as Schema<T>;
+	},
+
 	optional<T>(schema: Schema<T>): Schema<T | undefined> {
-		return { ...schema, [SYM_OPTIONAL]: true } as Schema<T | undefined>;
+		return t.union(schema, t.undefined);
 	},
 
 	nullable<T>(schema: Schema<T>): Schema<T | null> {
-		return { ...schema, [SYM_NULLABLE]: true } as Schema<T | null>;
+		return t.union(schema, t.null);
 	},
 
 	array<T>(schema: Schema<T>): Schema<T[]> {
@@ -87,15 +111,21 @@ const t = {
 
 	union<A extends Schema<unknown>[]>(
 		...items: A
-	): Schema<
-		{
-			[K in keyof A & number]: SchemaType<A[K]>;
-		}[keyof A & number]
-	> {
+	): Schema<UnionFromArraySchema<A>> {
 		const union: OperationSchemaContent = [
 			...items,
 		] as OperationSchemaContent;
 		union[SYM_TYPE_OP] = TypeOperation.UNION;
+		return union as Schema<any>;
+	},
+
+	intersection<A extends Schema<unknown>[]>(
+		...items: A
+	): Schema<IntersectionFromArraySchema<A>> {
+		const union: OperationSchemaContent = [
+			...items,
+		] as OperationSchemaContent;
+		union[SYM_TYPE_OP] = TypeOperation.INTERSECTION;
 		return union as Schema<any>;
 	},
 };

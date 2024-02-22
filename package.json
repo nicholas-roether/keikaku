@@ -3,9 +3,11 @@
 	"type": "module",
 	"packageManager": "yarn@4.1.0",
 	"scripts": {
-		"prepare": "ts-patch install -s"
+		"build": "swc ./src/index.ts -o ./dist/index.js -s inline"
 	},
 	"devDependencies": {
+		"@swc/cli": "^0.3.9",
+		"@swc/core": "^1.4.2",
 		"@typescript-eslint/eslint-plugin": "^7.0.1",
 		"@typescript-eslint/parser": "^7.0.1",
 		"eslint": "^8.56.0",
@@ -14,6 +16,7 @@
 		"typescript": "^5.3.3"
 	},
 	"dependencies": {
+		"@swc/helpers": "^0.5.6",
 		"tslib": "^2.6.2"
 	}
 }
